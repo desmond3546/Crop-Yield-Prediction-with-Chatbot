@@ -1,48 +1,61 @@
 # Import necessary libraries
-from langchain_experimental.agents import create_csv_agent
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-import google.generativeai as genai
-from langchain.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv
-import os
-import streamlit as st
+from flask import Flask, request, render_template
+import numpy as np
+import pickle
+import sklearn
 
-def main():
-    # Load environment variables from a .env file
-    load_dotenv()
+# Print the version of sklearn
+print(sklearn.__version__)
 
-    # Load the Google API key from the environment variable
-    if os.getenv("GOOGLE_API_KEY") is None or os.getenv("GOOGLE_API_KEY") == "":
-        print("GOOGLE_API_KEY is not set")
-        exit(1)
-    else:
-        print("GOOGLE_API_KEY is set")
+# Load the pre-trained models
+dtr = pickle.load(open('dtr.pkl', 'rb'))
+preprocessor = pickle.load(open('preprocesser.pkl', 'rb'))
 
-    # Set the page configuration for the Streamlit app
-    st.set_page_config(page_title="Ask your CSV")
-    st.header("Ask your CSV 📈")
+# Initialize the Flask application
+app = Flask(__name__)
 
-    # File uploader for CSV files
-    csv_file = st.file_uploader("Upload a CSV file", type="csv")
-    if csv_file is not None:
-        # Create a CSV agent using Google Generative AI
-        agent = create_csv_agent(
-            ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3),
-            csv_file,
-            verbose=True,
-            allow_dangerous_code=True
-        )
 
-        # Input field for user questions
-        user_question = st.text_input("Ask a question about your CSV: ")
+# Define the route for the home page
+@app.route('/')
+def index():
+    # Render the home page template
+    return render_template('index.html')
 
-        if user_question is not None and user_question != "":
-            # Display a spinner while the agent processes the question
-            with st.spinner(text="In progress..."):
-                # Display the agent's response
-                st.write(agent.run(user_question))
 
+# Define the route for making predictions
+@app.route("/predict", methods=['POST'])
+def predict():
+    # Check if the request method is POST
+    if request.method == 'POST':
+        # Get the input data from the form
+        Year = request.form['Year']
+        average_rain_fall_mm_per_year = request.form['average_rain_fall_mm_per_year']
+        pesticides_tonnes = request.form['pesticides_tonnes']
+        avg_temp = request.form['avg_temp']
+        solar_radiation = request.form['solar_radiation']
+        soil_organic_matter = request.form['soil_organic_matter']
+        soil_nitrogen = request.form['soil_nitrogen']
+        soil_phosphorus = request.form['soil_phosphorus']
+        soil_potassium = request.form['soil_potassium']
+        Area = request.form['Area']
+        Item = request.form['Item']
+
+        # Create a numpy array of the input features
+        features = np.array([[Year, average_rain_fall_mm_per_year, pesticides_tonnes, avg_temp, solar_radiation,
+                              soil_organic_matter, soil_nitrogen, soil_phosphorus, soil_potassium, Area, Item]],
+                            dtype=object)
+
+        # Transform the input features using the preprocessor
+        transformed_features = preprocessor.transform(features)
+
+        # Make a prediction using the Decision Tree Regressor model
+        prediction = dtr.predict(transformed_features).reshape(1, -1)
+
+        # Render the home page template with the prediction result
+        return render_template('index.html', prediction=prediction)
+
+
+# Run the Flask application
 if __name__ == "__main__":
-    # Run the main function to start the Streamlit app
-    main()
+    app.run(debug=True)
+
