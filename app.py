@@ -1,39 +1,48 @@
-from flask import Flask,request, render_template
-import numpy as np
-import pickle
-import sklearn
-print(sklearn.__version__)
-#loading models
-dtr = pickle.load(open('dtr.pkl','rb'))
-preprocessor = pickle.load(open('preprocesser.pkl','rb'))
+# Import necessary libraries
+from langchain_experimental.agents import create_csv_agent
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import google.generativeai as genai
+from langchain.vectorstores import FAISS
+from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+import os
+import streamlit as st
 
-#flask app
-app = Flask(__name__)
+def main():
+    # Load environment variables from a .env file
+    load_dotenv()
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-@app.route("/predict",methods=['POST'])
-def predict():
-    if request.method == 'POST':
-        Year = request.form['Year']
-        average_rain_fall_mm_per_year = request.form['average_rain_fall_mm_per_year']
-        pesticides_tonnes = request.form['pesticides_tonnes']
-        avg_temp = request.form['avg_temp']
-        solar_radiation = request.form['solar_radiation']
-        soil_organic_matter = request.form['soil_organic_matter']
-        soil_nitrogen = request.form['soil_nitrogen']
-        soil_phosphorus = request.form['soil_phosphorus']
-        soil_potassium = request.form['soil_potassium']
-        Area = request.form['Area']
-        Item  = request.form['Item']
+    # Load the Google API key from the environment variable
+    if os.getenv("GOOGLE_API_KEY") is None or os.getenv("GOOGLE_API_KEY") == "":
+        print("GOOGLE_API_KEY is not set")
+        exit(1)
+    else:
+        print("GOOGLE_API_KEY is set")
 
+    # Set the page configuration for the Streamlit app
+    st.set_page_config(page_title="Ask your CSV")
+    st.header("Ask your CSV 📈")
 
-        features = np.array([[Year,average_rain_fall_mm_per_year,pesticides_tonnes,avg_temp,solar_radiation,soil_organic_matter,soil_nitrogen,soil_phosphorus,soil_potassium,Area,Item]],dtype=object)
-        transformed_features = preprocessor.transform(features)
-        prediction = dtr.predict(transformed_features).reshape(1,-1)
+    # File uploader for CSV files
+    csv_file = st.file_uploader("Upload a CSV file", type="csv")
+    if csv_file is not None:
+        # Create a CSV agent using Google Generative AI
+        agent = create_csv_agent(
+            ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3),
+            csv_file,
+            verbose=True,
+            allow_dangerous_code=True
+        )
 
-        return render_template('index.html',prediction = prediction)
+        # Input field for user questions
+        user_question = st.text_input("Ask a question about your CSV: ")
 
-if __name__=="__main__":
-    app.run(debug=True)
+        if user_question is not None and user_question != "":
+            # Display a spinner while the agent processes the question
+            with st.spinner(text="In progress..."):
+                # Display the agent's response
+                st.write(agent.run(user_question))
+
+if __name__ == "__main__":
+    # Run the main function to start the Streamlit app
+    main()
