@@ -9,14 +9,6 @@ import warnings # For Ignoring Warnings
 warnings.filterwarnings('ignore')
 # Read the CSV file
 df = pd.read_csv("expanded_yield_df.csv")
-# Import necessary libraries
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Read the CSV file
-df = pd.read_csv("expanded_yield_df.csv")
 
 # Display the first five rows of the dataframe
 print(df.head())
